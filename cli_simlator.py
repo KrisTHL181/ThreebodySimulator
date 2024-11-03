@@ -3,23 +3,26 @@ from numba import jit
 
 np.random.seed(3407)
 
+DECIMAL_TYPE = np.float64
+NOPYTHON = True
+FASTMATH = True
+
 # 配置参数
 G = 6.67430e-11  # 万有引力常数
 dt = 3600  # 时间步长，单位：秒
 total_time = 30 * 24 * 3600  # 总模拟时间，单位：秒
 
-# 随机初始化星体的质量、速度和位置
+
 num_planets = 4  # 假设我们有4个行星
-planet_masses = np.random.uniform(1e20, 1e30, num_planets)  # 随机生成星体的质量
-planet_positions = np.random.uniform(
-    -1e12, 1e12, (num_planets, 3)
-)  # 随机生成星体的位置
-planet_velocities = np.random.uniform(-1e4, 1e4, (num_planets, 3))  # 随机生成星体的速度
+softening = 1e3  # 软ening 参数，防止除以零
 
-# 假设每个行星都有自转速度
-planet_rotational_speeds = np.random.uniform(-1e-5, 1e-5, num_planets)
-
-FASTMATH = True
+# 使用双精度浮点数
+planet_masses = np.random.uniform(1e20, 1e30, num_planets).astype(DECIMAL_TYPE)
+planet_positions = np.random.uniform(-1e12, 1e12, (num_planets, 3)).astype(DECIMAL_TYPE)
+planet_velocities = np.random.uniform(-1e4, 1e4, (num_planets, 3)).astype(DECIMAL_TYPE)
+planet_rotational_speeds = np.random.uniform(-1e-5, 1e-5, num_planets).astype(
+    DECIMAL_TYPE
+)
 
 
 def add_planet():
@@ -37,13 +40,12 @@ def add_planet():
 
 
 # 计算距离
-@jit(nopython=True, fastmath=FASTMATH)
+@jit(nopython=NOPYTHON, fastmath=FASTMATH)
 def distance(pos1, pos2):
     return np.linalg.norm(pos2 - pos1)
 
 
-# 计算加速度
-@jit(nopython=True, fastmath=FASTMATH)
+@jit(nopython=NOPYTHON, fastmath=FASTMATH)
 def acceleration(positions, masses, rotational_speeds):
     num_planets = len(masses)
     accelerations = np.zeros((num_planets, 3))
@@ -53,12 +55,14 @@ def acceleration(positions, masses, rotational_speeds):
                 r = distance(positions[i], positions[j])
                 if r == 0:
                     continue  # 避免除以零
-                a = G * masses[j] / (r**2)
+                a = G * masses[j] / ((r**2) + softening)
                 direction = (positions[j] - positions[i]) / r
                 accelerations[i] += a * direction
 
                 # 添加潮汐力
-                tidal_force = G * masses[j] * (positions[i] - positions[j]) / (r**3)
+                tidal_force = (
+                    G * masses[j] * (positions[i] - positions[j]) / ((r**3) + softening)
+                )
                 accelerations[i] += tidal_force
 
                 # 添加自转效应
@@ -70,7 +74,7 @@ def acceleration(positions, masses, rotational_speeds):
 
 
 # 更新位置和速度
-@jit(nopython=True, fastmath=FASTMATH)
+@jit(nopython=NOPYTHON, fastmath=FASTMATH)
 def update_positions(positions, velocities, accelerations, dt):
     velocities += accelerations * dt
     positions += velocities * dt

@@ -23,7 +23,7 @@ def evaluate_solution(solution):
     return all(regularities)
 
 
-@jit(nopython=True, fastmath=FASTMATH)
+@jit(nopython=NOPYTHON, fastmath=FASTMATH)
 def crossover(parent1, parent2):
     child1 = np.copy(parent1)
     child2 = np.copy(parent2)
@@ -33,7 +33,7 @@ def crossover(parent1, parent2):
     return child1, child2
 
 
-@jit(nopython=True, fastmath=FASTMATH)
+@jit(nopython=NOPYTHON, fastmath=FASTMATH)
 def mutate(solution, mutation_rate=0.01):
     for i in range(len(solution)):
         if np.random.rand() < mutation_rate:
@@ -41,7 +41,7 @@ def mutate(solution, mutation_rate=0.01):
     return solution
 
 
-# @jit(nopython=True)
+# @jit(nopython=NOPYTHON)
 def genetic_algorithm(num_generations=100, population_size=10, mutation_rate=0.01):
     population = [
         np.random.uniform(-1e12, 1e12, (num_planets, 3)) for _ in range(population_size)
