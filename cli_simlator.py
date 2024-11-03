@@ -9,6 +9,7 @@ FASTMATH = True
 
 # 配置参数
 G = 6.67430e-11  # 万有引力常数
+c = 299792458  # 光速，单位：米/秒
 dt = 3600  # 时间步长，单位：秒
 total_time = 30 * 24 * 3600  # 总模拟时间，单位：秒
 
@@ -70,6 +71,10 @@ def acceleration(positions, masses, rotational_speeds):
                     rotational_speeds[i] * positions[i], direction
                 )
                 accelerations[i] += rotational_force
+
+                # 添加相对论效应
+                relativity_factor = 1 + (G * masses[j] / (c**2 * r))
+                accelerations[i] *= relativity_factor
     return accelerations
 
 
