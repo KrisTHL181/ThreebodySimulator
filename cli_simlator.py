@@ -143,8 +143,40 @@ def check_gravitational_capture(positions, velocities, masses, threshold=1e10):
     return velocities
 
 
+# 检查潮汐锁定
+@jit(nopython=NOPYTHON, fastmath=FASTMATH)
+def check_tidal_locking(positions, velocities, rotational_speeds, dt):
+    num_planets = len(rotational_speeds)
+    for i in range(num_planets):
+        for j in range(num_planets):
+            if i != j:
+                r = distance(positions[i], positions[j])
+                if r == 0:
+                    continue  # 避免除以零
+                tidal_force_magnitude = G * planet_masses[j] / ((r**3) + softening)
+                tidal_torque = np.cross(
+                    positions[i] - positions[j],
+                    tidal_force_magnitude * (positions[i] - positions[j]),
+                )
+                rotational_speeds[i] -= (
+                    np.linalg.norm(tidal_torque) * dt / planet_masses[i]
+                )
+    return rotational_speeds
+
+
+# 检查轨道共振
+def check_orbital_resonance(velocities, tolerance=1e-2):
+    num_planets = len(velocities)
+    for i in range(num_planets):
+        for j in range(i + 1, num_planets):
+            orbital_ratio = velocities[i][1] / velocities[j][1]
+            if abs(orbital_ratio - round(orbital_ratio)) < tolerance:
+                return True
+    return False
+
+
 def simlator():
-    global planet_positions, planet_velocities, planet_masses
+    global planet_positions, planet_velocities, planet_masses, planet_rotational_speeds
     for t in range(int(total_time / dt)):
         accelerations = acceleration(
             planet_positions, planet_masses, planet_rotational_speeds
@@ -157,6 +189,9 @@ def simlator():
         )
         planet_velocities = check_gravitational_capture(
             planet_positions, planet_velocities, planet_masses
+        )
+        planet_rotational_speeds = check_tidal_locking(
+            planet_positions, planet_velocities, planet_rotational_speeds, dt
         )
 
         for i in range(len(planet_masses)):
@@ -182,3 +217,7 @@ if __name__ == "__main__":
         check_regularity(history, planet_index) for planet_index in planet_indices
     ]
     print(f"All planets have regular positions: {all(regularities)}")
+
+    # 检查轨道共振
+    orbital_resonance = check_orbital_resonance(planet_velocities)
+    print(f"Orbital resonance detected: {orbital_resonance}")
