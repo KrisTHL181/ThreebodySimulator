@@ -86,6 +86,39 @@ def update_positions(positions, velocities, accelerations, dt):
     return positions, velocities
 
 
+# 检查碰撞
+@jit(nopython=NOPYTHON, fastmath=FASTMATH)
+def check_collision(positions, velocities, masses, threshold=1e9):
+    num_planets = len(masses)
+    for i in range(num_planets):
+        for j in range(i + 1, num_planets):
+            if distance(positions[i], positions[j]) < threshold:
+                # 计算碰撞后的速度
+                v_i = velocities[i]
+                v_j = velocities[j]
+                m_i = masses[i]
+                m_j = masses[j]
+                velocities[i] = ((m_i - m_j) * v_i + 2 * m_j * v_j) / (m_i + m_j)
+                velocities[j] = ((m_j - m_i) * v_j + 2 * m_i * v_i) / (m_i + m_j)
+
+                # 计算碰撞后的质量
+                masses[i] = m_i + m_j
+                masses[j] = masses[i]
+
+                # 将发生碰撞的行星位置移动开，防止再次碰撞
+                positions[i] += (
+                    threshold
+                    * (positions[i] - positions[j])
+                    / distance(positions[i], positions[j])
+                )
+                positions[j] += (
+                    threshold
+                    * (positions[j] - positions[i])
+                    / distance(positions[i], positions[j])
+                )
+    return positions, velocities, masses
+
+
 def check_regularity(history, planet_index, tolerance=1e-6):
     positions = np.array(history["position"])
     planet_positions = positions[:, planet_index % 3]
@@ -93,14 +126,37 @@ def check_regularity(history, planet_index, tolerance=1e-6):
     return variance < tolerance
 
 
+# 检查引力捕获
+@jit(nopython=NOPYTHON, fastmath=FASTMATH)
+def check_gravitational_capture(positions, velocities, masses, threshold=1e10):
+    num_planets = len(masses)
+    for i in range(num_planets):
+        for j in range(i + 1, num_planets):
+            r = distance(positions[i], positions[j])
+            v = distance(velocities[i], velocities[j])
+            if r < threshold and v < threshold:
+                # 引力捕获
+                velocities[i] = (
+                    masses[j] * velocities[j] + masses[i] * velocities[i]
+                ) / (masses[i] + masses[j])
+                velocities[j] = velocities[i]
+    return velocities
+
+
 def simlator():
-    global planet_positions, planet_velocities
+    global planet_positions, planet_velocities, planet_masses
     for t in range(int(total_time / dt)):
         accelerations = acceleration(
             planet_positions, planet_masses, planet_rotational_speeds
         )
         planet_positions, planet_velocities = update_positions(
             planet_positions, planet_velocities, accelerations, dt
+        )
+        planet_positions, planet_velocities, planet_masses = check_collision(
+            planet_positions, planet_velocities, planet_masses
+        )
+        planet_velocities = check_gravitational_capture(
+            planet_positions, planet_velocities, planet_masses
         )
 
         for i in range(len(planet_masses)):
